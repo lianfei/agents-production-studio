@@ -1,0 +1,23 @@
+{
+  "template_type": "http_service",
+  "industry": "文化活动 / 文旅",
+  "task_description": "为一家城市艺术节运营团队生成一份可执行 AGENTS.md。最终产物应包含一个浏览器可访问的工作台，通过表单收集活动主题、日程、合作方要求和上线边界，先生成 PLAN.md，再生成最终 AGENTS.md，并支持结果页查看、一键复制和下载。",
+  "target_user": "internal_team",
+  "output_language": "zh",
+  "environment": [
+    "browser_service",
+    "docker"
+  ],
+  "risk_tolerance": "medium",
+  "preferred_stack": [
+    "python",
+    "fastapi",
+    "docker"
+  ],
+  "constraints": [
+    "记录所有关键过程并带时间戳",
+    "不得跳过验证",
+    "供应商必须可替换"
+  ],
+  "creative_notes": "页面风格更接近主流品牌官网，不要后台管理台感，也不要暴露内部目录或本地路径。"
+}

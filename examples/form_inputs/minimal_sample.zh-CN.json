@@ -1,0 +1,11 @@
+{
+  "template_type": "http_service",
+  "industry": "文旅活动",
+  "task_description": "为一家城市艺术节运营团队生成一份 AGENTS.md，要求最终结果可指导一个浏览器可访问的工作台按步骤收集活动信息并生成结果。",
+  "target_user": "internal_team",
+  "output_language": "zh",
+  "environment": [
+    "browser_service"
+  ],
+  "risk_tolerance": "medium"
+}

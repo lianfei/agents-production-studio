@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agents-corpus-workflow"
+version = "0.1.0"
+description = "Browser-based AGENTS.md production studio with optional corpus analysis and model-assisted refinement."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+license = { file = "LICENSE" }
+authors = [{ name = "Agents Production Studio Contributors" }]
+keywords = ["agents", "workflow", "browser", "documentation", "openai-compatible"]
+classifiers = [
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Operating System :: OS Independent",
+]
+
+[project.scripts]
+agents-corpus = "agents_corpus_workflow.cli:main"
+
+[tool.setuptools]
+packages = ["agents_corpus_workflow"]

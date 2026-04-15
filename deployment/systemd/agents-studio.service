@@ -1,0 +1,14 @@
+[Unit]
+Description=Agents Production Studio
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/agents-production-studio
+EnvironmentFile=/etc/agents-studio/agents-studio.env
+ExecStart=/bin/sh -lc '/opt/agents-production-studio/.venv/bin/agents-corpus serve-api --source-root "${SOURCE_ROOT:-/opt/agents-production-studio}" --output-dir "${OUTPUT_DIR:-/var/lib/agents-production-studio}" --host "${HOST:-127.0.0.1}" --port "${PORT:-8765}"'
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

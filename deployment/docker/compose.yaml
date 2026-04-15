@@ -1,0 +1,20 @@
+services:
+  agents-studio:
+    build:
+      context: ../..
+      dockerfile: deployment/docker/Dockerfile
+    image: agents-production-studio:0.1.0
+    ports:
+      - "8765:8765"
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8765
+      SOURCE_ROOT: /app
+      OUTPUT_DIR: /app/tmp
+      AGENTS_ADMIN_TOKEN: change-this-admin-token
+      OPENAI_BASE_URL: ""
+      OPENAI_API_KEY: ""
+      OPENAI_MODEL: ""
+    volumes:
+      - ../../tmp:/app/tmp
+    restart: unless-stopped

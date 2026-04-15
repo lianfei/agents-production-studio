@@ -1,0 +1,4 @@
+# Runtime installation helper.
+# This project uses only Python standard library modules at runtime.
+# Installing from this file installs the local package itself.
+.

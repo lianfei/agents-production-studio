@@ -1,0 +1,29 @@
+{
+  "template_type": "http_service",
+  "industry": "酒店 / 高端服务业",
+  "task_description": "为一家精品酒店集团的双语预订支持台升级项目生成一份高可执行度 AGENTS.md。最终产物需要包含浏览器可访问的向导式服务，通过步骤化界面收集项目目标、用户场景、运行环境、接口约束、验收标准与部署边界；系统需要先生成 PLAN.md，再基于 PLAN.md 生成最终 AGENTS.md；结果页必须支持查看、复制和下载，并给出适合生产上线的部署建议。",
+  "target_user": "internal_team",
+  "output_language": "bilingual",
+  "environment": [
+    "browser_service",
+    "local_plus_remote",
+    "docker"
+  ],
+  "risk_tolerance": "low",
+  "preferred_stack": [
+    "python",
+    "fastapi",
+    "docker",
+    "postgresql",
+    "redis"
+  ],
+  "constraints": [
+    "记录所有关键过程并带时间戳",
+    "不得跳过验证",
+    "供应商必须可替换",
+    "必须兼容现有 HTTP API",
+    "必须支持 Docker 部署",
+    "页面中不得暴露本地路径、原始数据目录或内部统计信息"
+  ],
+  "creative_notes": "整体视觉偏高端酒店官网：首页与结果页都要更重视业务语言和信任感表达，不要做成开发者后台。"
+}
