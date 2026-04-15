@@ -2,8 +2,15 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
+import socket
+import subprocess
+import sys
 import tempfile
+import time
 import unittest
+import urllib.request
+from importlib import util as importlib_util
 from pathlib import Path
 from unittest.mock import patch
 
@@ -97,6 +104,12 @@ class WorkflowTests(unittest.TestCase):
     def tearDown(self) -> None:
         os.environ.pop("AGENTS_WORKFLOW_DISABLE_CODEX_CONFIG", None)
         self.tempdir.cleanup()
+
+    @staticmethod
+    def _pick_free_port() -> int:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.bind(("127.0.0.1", 0))
+            return int(sock.getsockname()[1])
 
     def test_analyze_and_generate(self) -> None:
         service = WorkflowService(self.root, self.root / "tmp")
@@ -515,6 +528,125 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn("应用当前设置", html)
         self.assertIn("禁用模型增强功能", html)
         self.assertIn("管理员令牌", html)
+        self.assertIn("选择仓库示例", html)
+        self.assertIn("加载 JSON", html)
+
+    def test_service_lists_form_input_examples_from_source_root(self) -> None:
+        examples_root = self.root / "examples" / "form_inputs"
+        examples_root.mkdir(parents=True)
+        (examples_root / "custom_sample.zh-CN.json").write_text(
+            json.dumps(
+                {
+                    "template_type": "http_service",
+                    "industry": "公共服务",
+                    "task_description": "生成一个浏览器工作台，用于采集服务办理需求并输出 AGENTS.md。",
+                    "target_user": "internal_team",
+                    "output_language": "zh",
+                    "environment": ["browser_service", "docker"],
+                    "preferred_stack": ["python", "fastapi"],
+                    "constraints": ["记录所有关键过程并带时间戳"],
+                    "creative_notes": "界面优先使用结构化输入。",
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+
+        service = WorkflowService(self.root, self.root / "tmp")
+        rows = service.list_form_input_examples()
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["example_id"], "custom_sample.zh-CN")
+        self.assertEqual(rows[0]["title"], "公共服务")
+        self.assertEqual(rows[0]["request"]["environment"], ["browser_service", "docker"])
+        self.assertEqual(rows[0]["request"]["preferred_stack"], ["python", "fastapi"])
+        self.assertEqual(rows[0]["request"]["creative_notes"], "界面优先使用结构化输入。")
+
+    def test_frontend_smoke_renders_sidebar_and_import_controls(self) -> None:
+        if importlib_util.find_spec("playwright.sync_api") is None:
+            self.skipTest("playwright is not installed")
+
+        browser_path = next(
+            (
+                path
+                for path in (
+                    shutil.which("google-chrome"),
+                    shutil.which("google-chrome-stable"),
+                    shutil.which("chromium"),
+                    shutil.which("chromium-browser"),
+                )
+                if path
+            ),
+            "",
+        )
+        if not browser_path:
+            self.skipTest("no Chromium-compatible browser is available")
+
+        from playwright.sync_api import sync_playwright
+
+        port = self._pick_free_port()
+        repo_root = Path(__file__).resolve().parents[1]
+        process = subprocess.Popen(
+            [
+                sys.executable,
+                "-m",
+                "agents_corpus_workflow.cli",
+                "serve-api",
+                "--source-root",
+                str(self.root),
+                "--output-dir",
+                str(self.root / "tmp"),
+                "--host",
+                "127.0.0.1",
+                "--port",
+                str(port),
+            ],
+            cwd=str(repo_root),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+        try:
+            deadline = time.time() + 10
+            last_error = ""
+            while time.time() < deadline:
+                try:
+                    with urllib.request.urlopen(f"http://127.0.0.1:{port}/health", timeout=1) as response:
+                        if response.status == 200:
+                            break
+                except Exception as exc:  # pragma: no cover - best effort diagnostic path
+                    last_error = str(exc)
+                    time.sleep(0.2)
+            else:
+                process.terminate()
+                output, _ = process.communicate(timeout=2)
+                self.fail(f"frontend smoke server did not become healthy: {last_error}\n{output}")
+
+            with sync_playwright() as playwright:
+                browser = playwright.chromium.launch(
+                    executable_path=browser_path,
+                    headless=True,
+                    args=["--no-sandbox"],
+                )
+                page = browser.new_page()
+                page_errors: list[str] = []
+                page.on("pageerror", lambda exc: page_errors.append(str(exc)))
+                page.goto(f"http://127.0.0.1:{port}/", wait_until="networkidle")
+
+                self.assertEqual(page.locator("[data-screen-button]").count(), 3)
+                self.assertEqual(page.locator("[data-step-button]").count(), 5)
+                self.assertGreaterEqual(page.locator("#example_select option").count(), 2)
+                self.assertEqual(page.locator("#load-json-btn").count(), 1)
+                self.assertFalse(page_errors, f"unexpected page errors: {page_errors}")
+                browser.close()
+        finally:
+            if process.poll() is None:
+                process.terminate()
+                try:
+                    process.wait(timeout=3)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait(timeout=3)
 
     def test_service_default_model_settings_persist_and_hide_public_secret(self) -> None:
         service = WorkflowService(self.root, self.root / "tmp")

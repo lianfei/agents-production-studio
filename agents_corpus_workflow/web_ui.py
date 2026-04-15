@@ -755,6 +755,44 @@ def render_index_html(overview: dict, enable_admin_actions: bool = False) -> str
       display: grid;
       gap: 16px;
     }
+    .import-bar {
+      padding: 18px;
+      border-radius: 20px;
+      border: 1px solid rgba(22,33,29,0.10);
+      background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(249,244,236,0.92));
+      box-shadow: 0 16px 28px rgba(15, 23, 20, 0.06);
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+      gap: 16px;
+      align-items: center;
+    }
+    .import-bar h3 {
+      margin: 0 0 6px;
+      font-size: 16px;
+      letter-spacing: -0.01em;
+    }
+    .import-bar p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+    .import-actions {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto auto;
+      gap: 10px;
+      align-items: center;
+    }
+    .import-actions .button-secondary,
+    .import-actions .button-quiet {
+      min-width: 118px;
+    }
+    .import-note {
+      grid-column: 1 / -1;
+      font-size: 12px;
+    }
+    .import-note.error {
+      color: var(--danger);
+    }
     .question-summary-pills,
     .plan-summary-pills {
       display: flex;
@@ -2066,6 +2104,14 @@ def render_index_html(overview: dict, enable_admin_actions: bool = False) -> str
       .admin-token-row {
         grid-template-columns: 1fr;
       }
+      .import-bar,
+      .import-actions {
+        grid-template-columns: 1fr;
+      }
+      .import-actions .button-secondary,
+      .import-actions .button-quiet {
+        width: 100%;
+      }
       .admin-token-head {
         display: grid;
       }
@@ -2176,6 +2222,21 @@ def render_index_html(overview: dict, enable_admin_actions: bool = False) -> str
                       <div class="eyebrow">Step 1</div>
                       <h2>选择目标模板并描述任务</h2>
                       <p>先明确这次输出最接近哪种目标类型，再用一段清晰的任务描述告诉系统你真正要完成什么。</p>
+                    </div>
+                  </div>
+                  <div class="import-bar">
+                    <div>
+                      <h3>快速导入已有输入</h3>
+                      <p>可以先加载仓库自带示例，也可以从本地选择一个 JSON 文件。系统会尽量识别并回填到当前创建向导。</p>
+                    </div>
+                    <div class="import-actions">
+                      <select id="example_select" aria-label="选择仓库示例">
+                        <option value="">选择仓库示例</option>
+                      </select>
+                      <button type="button" class="button-secondary" id="load-example-btn">加载示例</button>
+                      <button type="button" class="button-quiet" id="load-json-btn">加载 JSON</button>
+                      <input type="file" id="load-json-input" accept=".json,application/json" hidden>
+                      <p class="field-help import-note" id="example-import-note">正在读取内置示例，你也可以直接加载本地 JSON。</p>
                     </div>
                   </div>
                   <div class="field-grid">
@@ -2820,6 +2881,7 @@ def render_index_html(overview: dict, enable_admin_actions: bool = False) -> str
       lastResult: null,
       resultViewMode: 'final',
       drawerViewMode: 'final',
+      formExamples: [],
       currentRequestId: '',
       progressTimer: 0,
       progressPending: false,
@@ -2904,6 +2966,11 @@ def render_index_html(overview: dict, enable_admin_actions: bool = False) -> str
     const openLibraryBtn = document.getElementById('open-library-btn');
     const jumpResultBtn = document.getElementById('jump-result-btn');
     const applyTemplateBtn = document.getElementById('apply-template-btn');
+    const exampleSelect = document.getElementById('example_select');
+    const loadExampleBtn = document.getElementById('load-example-btn');
+    const loadJsonBtn = document.getElementById('load-json-btn');
+    const loadJsonInput = document.getElementById('load-json-input');
+    const exampleImportNote = document.getElementById('example-import-note');
     const templateTitle = document.getElementById('template-title');
     const templateSummary = document.getElementById('template-summary');
     const templateHighlights = document.getElementById('template-highlights');
@@ -3646,6 +3713,97 @@ def render_index_html(overview: dict, enable_admin_actions: bool = False) -> str
     function setStatus(text, isError = false) {
       statusEl.textContent = text;
       statusEl.className = isError ? 'status error' : 'status';
+    }
+
+    function setExampleImportNote(text, isError = false) {
+      exampleImportNote.textContent = text;
+      exampleImportNote.className = isError ? 'field-help import-note error' : 'field-help import-note';
+    }
+
+    function normalizeTextList(value, pattern = /[\\n,;，；]+/g) {
+      if (Array.isArray(value)) {
+        return value.map(item => String(item || '').trim()).filter(Boolean);
+      }
+      return String(value || '')
+        .split(pattern)
+        .map(item => item.trim())
+        .filter(Boolean);
+    }
+
+    function normalizeImportedRequest(rawRequest) {
+      const payload = rawRequest && typeof rawRequest === 'object' ? rawRequest : {};
+      const source = payload.request && typeof payload.request === 'object'
+        ? payload.request
+        : (payload.base_request && typeof payload.base_request === 'object' ? payload.base_request : payload);
+      const normalizedConstraints = normalizeTextList(source.constraints);
+      const split = splitConstraintsAndNotes(normalizedConstraints);
+      return {
+        template_type: String(source.template_type || 'custom').trim() || 'custom',
+        industry: String(source.industry || '').trim(),
+        task_description: String(source.task_description || source.goal_definition || '').trim(),
+        target_user: String(source.target_user || 'general').trim() || 'general',
+        output_language: String(source.output_language || 'zh').trim() || 'zh',
+        environment: splitEnvironmentValue(source.environment || ''),
+        constraints: split.constraints,
+        preferred_stack: normalizeTextList(source.preferred_stack),
+        risk_tolerance: String(source.risk_tolerance || 'medium').trim() || 'medium',
+        creative_notes: String(source.creative_notes || split.note || '').trim()
+      };
+    }
+
+    function formExampleById(exampleId) {
+      return (state.formExamples || []).find(item => item.example_id === exampleId) || null;
+    }
+
+    function syncExampleImportNote() {
+      const example = formExampleById(exampleSelect.value);
+      if (example) {
+        const preview = String(example.task_preview || '').trim();
+        setExampleImportNote(`${example.title} · ${example.summary}${preview ? `。${preview}` : ''}`);
+        return;
+      }
+      if ((state.formExamples || []).length) {
+        setExampleImportNote('可直接加载仓库示例，或从本地选择一个 JSON 文件。');
+        return;
+      }
+      setExampleImportNote('当前没有可用的内置示例，你仍然可以直接加载本地 JSON 文件。');
+    }
+
+    function renderFormExamples() {
+      const selected = exampleSelect.value;
+      exampleSelect.innerHTML = '';
+      const placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.textContent = '选择仓库示例';
+      exampleSelect.appendChild(placeholder);
+      (state.formExamples || []).forEach(item => {
+        const option = document.createElement('option');
+        option.value = item.example_id;
+        option.textContent = `${item.title} · ${item.summary}`;
+        exampleSelect.appendChild(option);
+      });
+      exampleSelect.disabled = !(state.formExamples || []).length;
+      loadExampleBtn.disabled = !(state.formExamples || []).length;
+      if (selected && (state.formExamples || []).some(item => item.example_id === selected)) {
+        exampleSelect.value = selected;
+      }
+      syncExampleImportNote();
+    }
+
+    async function refreshFormExamples() {
+      try {
+        const response = await fetch('/form-examples');
+        const payload = await response.json();
+        if (!response.ok || payload.status !== 'ok') {
+          throw new Error(payload.message || '读取示例失败');
+        }
+        state.formExamples = Array.isArray(payload.result) ? payload.result : [];
+        renderFormExamples();
+      } catch (error) {
+        state.formExamples = [];
+        renderFormExamples();
+        setExampleImportNote(error.message || '读取内置示例失败，你仍然可以加载本地 JSON 文件。', true);
+      }
     }
 
     function fillSelect(selectId, values, labels) {
@@ -4621,28 +4779,54 @@ def render_index_html(overview: dict, enable_admin_actions: bool = False) -> str
     }
 
     function applyRequestToForm(request) {
-      if (!request || (!request.industry && !request.task_description)) {
+      const normalized = normalizeImportedRequest(request);
+      if (!normalized.industry && !normalized.task_description) {
         setStatus('该案例缺少可复用的输入元数据。', true);
         return;
       }
-      const split = splitConstraintsAndNotes(request.constraints || []);
-      setSelectOrOther('template_select', 'template_other', request.template_type || 'custom');
-      setSelectOrOther('industry_select', 'industry_other', request.industry || '');
-      setSelectOrOther('target_user_select', 'target_user_other', request.target_user || 'general');
-      setSelectOrOther('output_language_select', 'output_language_other', request.output_language || 'zh');
-      setSelectedValues('environment', splitEnvironmentValue(request.environment || ''));
-      setSelectOrOther('risk_tolerance_select', 'risk_tolerance_other', request.risk_tolerance || 'medium');
-      document.getElementById('task_description').value = request.task_description || '';
-      setSelectedValues('stack', request.preferred_stack || []);
-      setSelectedValues('constraint', split.constraints);
-      creativeNotesInput.value = split.note;
       resetIntakeState();
+      setSelectOrOther('template_select', 'template_other', normalized.template_type || 'custom');
+      setSelectOrOther('industry_select', 'industry_other', normalized.industry || '');
+      setSelectOrOther('target_user_select', 'target_user_other', normalized.target_user || 'general');
+      setSelectOrOther('output_language_select', 'output_language_other', normalized.output_language || 'zh');
+      setSelectedValues('environment', normalized.environment || []);
+      setSelectOrOther('risk_tolerance_select', 'risk_tolerance_other', normalized.risk_tolerance || 'medium');
+      document.getElementById('task_description').value = normalized.task_description || '';
+      setSelectedValues('stack', normalized.preferred_stack || []);
+      setSelectedValues('constraint', normalized.constraints || []);
+      creativeNotesInput.value = normalized.creative_notes || '';
       renderTemplateCard();
       renderDraftSummary();
       closeDrawer();
       showScreen('workspace');
       showStep(0);
       setStatus('案例输入已回填到创建向导，可继续修改后重新生成。');
+    }
+
+    function loadSelectedExample() {
+      const example = formExampleById(exampleSelect.value);
+      if (!example) {
+        setStatus('请先选择一个仓库示例。', true);
+        return;
+      }
+      applyRequestToForm(example.request || example);
+      setStatus(`已加载示例：${example.title}。你可以继续修改后再生成。`);
+    }
+
+    async function handleJsonImport(file) {
+      if (!file) {
+        return;
+      }
+      try {
+        const raw = await file.text();
+        const payload = JSON.parse(raw);
+        applyRequestToForm(payload);
+        setStatus(`已从 ${file.name} 回填创建表单。你可以继续修改后再生成。`);
+      } catch (error) {
+        setStatus(error && error.message ? `加载 JSON 失败：${error.message}` : '加载 JSON 失败。', true);
+      } finally {
+        loadJsonInput.value = '';
+      }
     }
 
     function syncResultVersionControls() {
@@ -5579,6 +5763,15 @@ def render_index_html(overview: dict, enable_admin_actions: bool = False) -> str
       addEnvironmentBtn.addEventListener('click', () => addCustomValue('environment'));
       addStackBtn.addEventListener('click', () => addCustomValue('stack'));
       addConstraintBtn.addEventListener('click', () => addCustomValue('constraint'));
+      exampleSelect.addEventListener('change', syncExampleImportNote);
+      loadExampleBtn.addEventListener('click', loadSelectedExample);
+      loadJsonBtn.addEventListener('click', () => {
+        loadJsonInput.value = '';
+        loadJsonInput.click();
+      });
+      loadJsonInput.addEventListener('change', () => {
+        void handleJsonImport(loadJsonInput.files && loadJsonInput.files[0]);
+      });
       applyTemplateBtn.addEventListener('click', () => {
         const hadIntakeSession = !!state.intakeSession;
         const changes = applyTemplateDefaults(true);
@@ -5745,6 +5938,7 @@ def render_index_html(overview: dict, enable_admin_actions: bool = False) -> str
       });
 
       syncModelTokenVisibilityButton();
+      void refreshFormExamples();
       Promise.all([refreshOverview(), refreshLibrary(), refreshModelSettings()]).catch(error => {
         setStatus(error.message || '初始化数据失败', true);
         setModelSettingsStatus(error.message || '初始化模型配置失败', true);

@@ -47,6 +47,12 @@ TEMPLATE_LABELS = {
     "custom": "自定义任务",
 }
 
+FORM_EXAMPLE_TITLES = {
+    "minimal_sample.zh-CN": "最短必填示例",
+    "good_sample.zh-CN": "标准示例",
+    "excellent_sample.zh-CN": "高质量示例",
+}
+
 DEFERRED_ANSWER_PREFIX = "待确认："
 
 PATH_QUESTION_IDS = {
@@ -2026,6 +2032,98 @@ class WorkflowService:
             "library_preview": preview,
             "generation_history": preview,
         }
+
+    def form_input_examples_root(self) -> Path:
+        app_root = Path(__file__).resolve().parent.parent
+        candidates = [
+            self.source_root / "examples" / "form_inputs",
+            app_root / "examples" / "form_inputs",
+        ]
+        seen: set[Path] = set()
+        for candidate in candidates:
+            resolved = candidate.resolve()
+            if resolved in seen:
+                continue
+            seen.add(resolved)
+            if candidate.exists() and candidate.is_dir():
+                return candidate
+        return candidates[0]
+
+    @staticmethod
+    def _normalize_form_input_example_request(raw: object) -> dict[str, object]:
+        data = raw if isinstance(raw, dict) else {}
+        if isinstance(data.get("request"), dict):
+            data = dict(data["request"])
+        elif isinstance(data.get("base_request"), dict):
+            data = dict(data["base_request"])
+        environment_raw = data.get("environment", "")
+        if isinstance(environment_raw, list):
+            environment = [str(item or "").strip() for item in environment_raw if str(item or "").strip()]
+        else:
+            environment = [part.strip() for part in str(environment_raw or "").split(",") if part.strip()]
+        preferred_stack_raw = data.get("preferred_stack", [])
+        if isinstance(preferred_stack_raw, list):
+            preferred_stack = [str(item or "").strip() for item in preferred_stack_raw if str(item or "").strip()]
+        else:
+            preferred_stack = [part.strip() for part in re.split(r"[\n,]+", str(preferred_stack_raw or "")) if part.strip()]
+        constraints_raw = data.get("constraints", [])
+        if isinstance(constraints_raw, list):
+            constraints = [str(item or "").strip() for item in constraints_raw if str(item or "").strip()]
+        else:
+            constraints = [part.strip() for part in re.split(r"[\n,]+", str(constraints_raw or "")) if part.strip()]
+        return {
+            "template_type": str(data.get("template_type", "") or "custom").strip() or "custom",
+            "industry": str(data.get("industry", "") or "").strip(),
+            "task_description": str(data.get("task_description", "") or data.get("goal_definition", "") or "").strip(),
+            "target_user": str(data.get("target_user", "") or "general").strip() or "general",
+            "output_language": str(data.get("output_language", "") or "zh").strip() or "zh",
+            "environment": environment,
+            "constraints": constraints,
+            "preferred_stack": preferred_stack,
+            "risk_tolerance": str(data.get("risk_tolerance", "") or "medium").strip() or "medium",
+            "creative_notes": str(data.get("creative_notes", "") or "").strip(),
+        }
+
+    @staticmethod
+    def _form_input_example_title(example_id: str, request: dict[str, object]) -> str:
+        explicit = FORM_EXAMPLE_TITLES.get(example_id, "")
+        if explicit:
+            return explicit
+        industry = str(request.get("industry", "") or "").strip()
+        if industry:
+            return industry
+        template_type = str(request.get("template_type", "") or "custom").strip() or "custom"
+        return TEMPLATE_LABELS.get(template_type, "示例输入")
+
+    def list_form_input_examples(self) -> list[dict[str, object]]:
+        root = self.form_input_examples_root()
+        if not root.exists() or not root.is_dir():
+            return []
+        rows: list[dict[str, object]] = []
+        for path in sorted(root.glob("*.json")):
+            try:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            request = self._normalize_form_input_example_request(payload)
+            title = self._form_input_example_title(path.stem, request)
+            template_label = TEMPLATE_LABELS.get(str(request.get("template_type", "custom")), "自定义任务")
+            language = str(request.get("output_language", "") or "zh").strip() or "zh"
+            summary_parts = [template_label]
+            if request.get("industry"):
+                summary_parts.append(str(request["industry"]))
+            summary_parts.append(language.upper())
+            rows.append(
+                {
+                    "example_id": path.stem,
+                    "filename": path.name,
+                    "title": title,
+                    "summary": " · ".join(part for part in summary_parts if part),
+                    "task_preview": str(request.get("task_description", "") or "")[:140],
+                    "request": request,
+                }
+            )
+        return rows
 
     def list_generated_documents(self, limit: int | None = 8) -> list[dict[str, object]]:
         rows: list[dict[str, object]] = []

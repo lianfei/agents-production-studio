@@ -20,6 +20,24 @@
 
 ## Step 1：模板与目标
 
+你可以在这一步顶部直接使用两种快捷方式：
+
+- `选择仓库示例`：直接加载 `examples/form_inputs` 中的内置示例
+- `加载 JSON`：从本地选择一个 JSON 文件，系统会尽量识别字段并回填到当前表单
+
+适合导入的 JSON 字段通常包括：
+
+- `template_type`
+- `industry`
+- `task_description`
+- `target_user`
+- `output_language`
+- `environment`
+- `preferred_stack`
+- `constraints`
+- `creative_notes`
+- `risk_tolerance`
+
 ### 1. 模板
 
 作用：帮助系统建立一个初始工作框架。
@@ -306,7 +324,7 @@
 
 ## 八、配套示例文件
 
-你也可以直接参考：
+你也可以直接参考，或者在创建页通过“选择仓库示例”直接加载：
 
 - [`../examples/form_inputs/minimal_sample.zh-CN.json`](../examples/form_inputs/minimal_sample.zh-CN.json)
 - [`../examples/form_inputs/good_sample.zh-CN.json`](../examples/form_inputs/good_sample.zh-CN.json)

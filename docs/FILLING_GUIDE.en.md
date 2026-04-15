@@ -15,6 +15,8 @@ Good inputs usually make these four things explicit:
 
 ### Step 1: Template and Goal
 
+- At the top of this step, you can load a built-in sample from `examples/form_inputs` or import a local JSON file to prefill the form.
+- Common reusable fields are `template_type`, `industry`, `task_description`, `target_user`, `output_language`, `environment`, `preferred_stack`, `constraints`, `creative_notes`, and `risk_tolerance`.
 - Choose the template that matches the delivery shape.
 - Industry should describe the business domain, not the tech stack.
 - Task description is the most important field. State the final deliverable, target users, usage mode, and success direction.

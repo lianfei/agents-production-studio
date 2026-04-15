@@ -396,6 +396,9 @@ def serve(
                     },
                 )
                 return
+            if parsed.path == "/form-examples":
+                self._send(HTTPStatus.OK, {"status": "ok", "result": service.list_form_input_examples()})
+                return
             if parsed.path == "/library":
                 self._send(HTTPStatus.OK, {"status": "ok", "result": service.list_generated_documents(limit=None)})
                 return

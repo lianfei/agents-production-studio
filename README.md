@@ -69,6 +69,7 @@ Agents Production Studio is a browser-based workspace for collecting task contex
 ## Core Capabilities
 
 - 向导式创建流程：按步骤收集模板、目标、环境、约束、补充问答和 PLAN.md。
+- 示例与 JSON 导入：创建页支持直接加载仓库内置示例，也支持从本地选择 JSON 文件回填表单。
 - 可选模型增强：默认可关闭；启用后可优先读取系统默认模型，或切换自定义 OpenAI 兼容接口。
 - 结果页与案例库：查看生成结果、回看系统创建案例、复用输入、一键复制。
 - 时间戳记录：关键产物、日志和生成结果默认写入 `tmp/` 并带时间戳。
