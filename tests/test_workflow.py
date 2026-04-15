@@ -10,7 +10,6 @@ import tempfile
 import time
 import unittest
 import urllib.request
-from importlib import util as importlib_util
 from pathlib import Path
 from unittest.mock import patch
 
@@ -563,7 +562,9 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(rows[0]["request"]["creative_notes"], "界面优先使用结构化输入。")
 
     def test_frontend_smoke_renders_sidebar_and_import_controls(self) -> None:
-        if importlib_util.find_spec("playwright.sync_api") is None:
+        try:
+            from playwright.sync_api import sync_playwright
+        except ModuleNotFoundError:
             self.skipTest("playwright is not installed")
 
         browser_path = next(
@@ -581,8 +582,6 @@ class WorkflowTests(unittest.TestCase):
         )
         if not browser_path:
             self.skipTest("no Chromium-compatible browser is available")
-
-        from playwright.sync_api import sync_playwright
 
         port = self._pick_free_port()
         repo_root = Path(__file__).resolve().parents[1]
